@@ -151,7 +151,7 @@ export default function PipelineRun({ run, selected, onPreview }: Props) {
               <RoleHeader
                 avatar={AGENT_AVATARS[3]}
                 name="开发工程师"
-                model="claude-opus-4.6"
+                model="deepseek-v4-pro"
                 extra={
                   dev && (
                     <span

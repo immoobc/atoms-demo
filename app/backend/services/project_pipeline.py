@@ -19,7 +19,7 @@ from services.aihub import AIHubService
 logger = logging.getLogger(__name__)
 
 LEAD_MODEL = "deepseek-v4-pro"
-DEV_MODEL = "claude-opus-4.6"
+DEV_MODEL = "deepseek-v4-pro"
 MEMORY_MODEL = "deepseek-v4-flash"
 DEV_MAX_TOKENS = 16000
 

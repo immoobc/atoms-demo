@@ -23,9 +23,12 @@ last_updated: 2026-11-11T00:00:00Z
 | P4 | 前端：项目列表、工作区、流水线卡片、预览/代码/版本、角色规范、记忆绑定 | Alex | done | P3 |
 | P5 | tsc + lint + build + py 检查 | Alex | done | P4 |
 | P6 | 端到端流水线实测 | Alex | blocked | P5 |
+| P7 | 开发模型改为 deepseek-v4-pro（后端 + 界面） | Alex | done | P6 |
+| P8 | 修复开发阶段的输出解析问题（缺 meta、修复轮解析失败、引用了未生成的 styles.css） | Alex | pending | P7 |
 
 ## Progress Log
 - 2026-11-10 完成记忆对话应用，跨会话召回实测通过。
 - 2026-11-11 完成项目工作区；按需求变更移除质量角色。
 - 2026-11-11 实测 1：主管阶段通过；开发阶段因 JSON 转义校验失败 → 改为 `<file>` 块输出 + 静态自测。
 - 2026-11-11 实测 2：主管阶段通过；开发阶段遇到 403 insufficient_ai_balance → 阻塞，需要充值后复测。
+- 2026-11-11 开发模型换成 deepseek-v4-pro 后实测 3：v1 跑通全部阶段（主管→开发→修复→记忆沉淀，119s），生成 index.html + app.js 并可以预览；自测未通过（meta 缺失、引用的 styles.css 未生成，修复轮返回 no <file> blocks found）；新建项目记忆，并以 derived 绑定到项目。v2 开发阶段再次 403 余额不足 → 阻塞。
