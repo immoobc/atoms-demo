@@ -13,6 +13,10 @@ An Atoms-style AI demo with a cross-session memory system and a project workspac
   - **Pipeline**: Project lead (plans tasks and acceptance points) → developer (generates the app, self-checks it, and repairs it once if needed) → saves project conclusions as memories.
   - **Workspace view**: Each stage updates live. A sandboxed iframe previews the generated app. A file browser shows the code. Every iteration creates a new version you can switch to.
 
+## Documentation
+
+- [System Functional Design (Chinese)](docs/系统功能设计说明.md): memory layers and pipeline, project roles and state machine, data model, user guide, known limitations.
+
 ## Structure
 
 ```
