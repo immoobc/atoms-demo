@@ -1,0 +1,1225 @@
+{
+  "overview": {
+    "TITLE": "Current & <Title>",
+    "DESCRIPTION": "Current \"Description\"",
+    "LOGO_URL": "/current.png?a=1&b=2",
+    "DARK_LOGO_URL": ""
+  },
+  "body": "<body data-probe=\"keep\"><svg><path d=\"M0 0\" /></svg><script>const text=\"</head><meta name=description content=BODY>\";</script><textarea>literal <meta name=\"description\" content=\"BODY\"></textarea></body></html>",
+  "notes": [
+    "expectedFields约束运行时当前Overview；expectedBuildFields约束静态产物中有效平台默认的已有构建值。两端页面值优先、空值忽略、单值/多值规则相同，但平台值自然来自各阶段，不能把运行时新鲜度差异误判为静态优先级错误。",
+    "两组expected字段仅限定所列字段；实现可为其余缺字段补默认。静态finalize阶段不应在缺少当前平台输入时凭空删除已有有效构建默认。",
+    "运行时Overview缺失、空串或纯空白均表示不覆盖，保留构建已有值；只有非空Overview才参与按字段合并。",
+    "字段身份和属性名按ASCII大小写归一化；HTML属性值先解码，再沿用Python str.strip判断是否为空；只判断空白，不改写非空页面内容。",
+    "Python空白集合为U+0009-U+000D、U+001C-U+0020、U+0085、U+00A0、U+1680、U+2000-U+200A、U+2028、U+2029、U+202F、U+205F、U+3000；FEFF和U+200B不是空白。TS应匹配此集合，不直接使用ECMAScript trim集合。",
+    "单值字段保留第一个非空页面值；og:image/twitter:image保留全部非空页面值及顺序。",
+    "data-mgx-overview按ASCII大小写归一化后精确匹配字段才表示平台默认，错误marker仍是页面值。",
+    "expectedManagedFields表示唯一/保留值继续带对应marker；expectedUnmanagedFields表示作者值不带有效平台marker。",
+    "data-mgx-overview-prefix是派生字面前缀协议；Blog首页静态保留Blog | Old Site，运行时仅在Overview标题非空时刷新为Blog | 当前Overview标题，空值保留构建前缀和标题。",
+    "构建默认值来自源码，运行时默认值来自当前Overview；同一优先级在各阶段保留对应来源值。",
+    "文档title只来自真正的<title>；meta的name/property=title是独立元数据，按原文保留，不参加文档title去重。",
+    "构建时没有有效页面值或非空平台值时，仍保留一枚空平台标签及其marker；运行时Overview为空同样保留构建标签，不能删除唯一文档title。",
+    "buildUnchanged用例包含HTML5解析会隐式结束head的math或歧义身份；构建保守保留源码，运行时只刷新可识别的已有managed标签。两个阶段不强制采用相同的非法head DOM语义。",
+    "expectedBuildKeepHtml仅约束构建阶段的源码标记保留；expectedKeepHtml约束两阶段均须保留的标签。"
+  ],
+  "cases": [
+    {
+      "name": "description-empty",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"\">"
+    },
+    {
+      "name": "description-missing",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\">"
+    },
+    {
+      "name": "description-whitespace",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"  &#9;  \">"
+    },
+    {
+      "name": "description-nbsp",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"&nbsp;\">"
+    },
+    {
+      "name": "description-page-entity",
+      "expectedFields": {
+        "description": [
+          "Page & <value>"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "Page & <value>"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"Page &amp; &lt;value&gt;\">"
+    },
+    {
+      "name": "description-name-uppercase",
+      "expectedFields": {
+        "description": [
+          "PAGE"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "PAGE"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta NAME=\"DESCRIPTION\" CONTENT=\"PAGE\">"
+    },
+    {
+      "name": "description-marked-uppercase",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "OLD"
+        ]
+      },
+      "head": "<meta DATA-MGX-OVERVIEW=\"DESCRIPTION\" NAME=\"DESCRIPTION\" CONTENT=\"OLD\">"
+    },
+    {
+      "name": "description-first-page-wins",
+      "expectedFields": {
+        "description": [
+          "ONE"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "description"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "ONE"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"ONE\"><meta name=\"description\" content=\"TWO\">"
+    },
+    {
+      "name": "description-wrong-marker-remains-authored",
+      "expectedFields": {
+        "description": [
+          "PAGE"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta data-mgx-overview=\"other\" name=\"description\" content=\"PAGE\">"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "PAGE"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"OLD\"><meta data-mgx-overview=\"other\" name=\"description\" content=\"PAGE\">"
+    },
+    {
+      "name": "images-ordered-nonempty",
+      "expectedFields": {
+        "og:image": [
+          "/a.png",
+          "/b.png"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "og:image"
+      ],
+      "expectedBuildFields": {
+        "og:image": [
+          "/a.png",
+          "/b.png"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/old.png\"><meta property=\"og:image\" content=\"\"><meta property=\"og:image\" content=\"/a.png\"><meta property=\"og:image\" content=\"/b.png\">"
+    },
+    {
+      "name": "images-case-normalization",
+      "expectedFields": {
+        "og:image": [
+          "/a.png",
+          "/b.png"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "og:image"
+      ],
+      "expectedBuildFields": {
+        "og:image": [
+          "/a.png",
+          "/b.png"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/old.png\"><meta PROPERTY=\"OG:IMAGE\" CONTENT=\"/a.png\"><meta property=\"og:image\" content=\"/b.png\">"
+    },
+    {
+      "name": "twitter-images-ordered",
+      "expectedFields": {
+        "twitter:image": [
+          "/a.png",
+          "/b.png"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "twitter:image"
+      ],
+      "expectedBuildFields": {
+        "twitter:image": [
+          "/a.png",
+          "/b.png"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"twitter:image\" name=\"twitter:image\" content=\"/old.png\"><meta name=\"twitter:image\" content=\"/a.png\"><meta name=\"twitter:image\" content=\"/b.png\">"
+    },
+    {
+      "name": "title-authored-independent",
+      "expectedFields": {
+        "title": [
+          "PAGE & Title"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "title"
+      ],
+      "expectedBuildFields": {
+        "title": [
+          "PAGE & Title"
+        ]
+      },
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>PAGE &amp; Title</title>"
+    },
+    {
+      "name": "title-authored-equals-build-value",
+      "expectedFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "title"
+      ],
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>BUILD OLD</title>"
+    },
+    {
+      "name": "title-managed-freshens",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedManagedFields": [
+        "title"
+      ],
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title>"
+    },
+    {
+      "name": "nonblog-page-title",
+      "expectedFields": {
+        "title": [
+          "DOC PAGE"
+        ]
+      },
+      "route": "/docs/",
+      "expectedUnmanagedFields": [
+        "title"
+      ],
+      "expectedBuildFields": {
+        "title": [
+          "DOC PAGE"
+        ]
+      },
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>DOC PAGE</title>"
+    },
+    {
+      "name": "source-inert-and-body-preserved",
+      "expectedFields": {
+        "description": [
+          "PAGE"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<script>const text=\"<meta name=description content=SCRIPT>\";</script>",
+        "<template><meta name=\"description\" content=\"INERT\"></template>"
+      ],
+      "expectedBuildFields": {
+        "description": [
+          "PAGE"
+        ]
+      },
+      "head": "<script>const text=\"<meta name=description content=SCRIPT>\";</script><template><meta name=\"description\" content=\"INERT\"></template><meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"PAGE\">"
+    },
+    {
+      "name": "site-name-author-wins",
+      "expectedFields": {
+        "og:site_name": [
+          "Author Site"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "og:site_name"
+      ],
+      "expectedBuildFields": {
+        "og:site_name": [
+          "Author Site"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"BUILD OLD\"><meta property=\"og:site_name\" content=\"Author Site\">"
+    },
+    {
+      "name": "site-name-derived-refreshes",
+      "expectedFields": {
+        "og:site_name": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedManagedFields": [
+        "og:site_name"
+      ],
+      "expectedBuildFields": {
+        "og:site_name": [
+          "BUILD OLD"
+        ]
+      },
+      "head": "<meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"BUILD OLD\">"
+    },
+    {
+      "name": "blank-overview-keeps-build-defaults",
+      "expectedFields": {
+        "title": [
+          "BUILD OLD"
+        ],
+        "description": [
+          "BUILD OLD"
+        ],
+        "og:image": [
+          "/old.png"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ],
+        "description": [
+          "BUILD OLD"
+        ],
+        "og:image": [
+          "/old.png"
+        ]
+      },
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/old.png\">",
+      "overview": {
+        "TITLE": "  ",
+        "DESCRIPTION": "",
+        "LOGO_URL": "",
+        "DARK_LOGO_URL": ""
+      }
+    },
+    {
+      "name": "blog-index-prefix-derived-refreshes",
+      "expectedFields": {
+        "title": [
+          "Blog | Current & <Title>"
+        ],
+        "og:title": [
+          "Blog | Current & <Title>"
+        ],
+        "twitter:title": [
+          "Blog | Current & <Title>"
+        ]
+      },
+      "expectedManagedFields": [
+        "title",
+        "og:title",
+        "twitter:title"
+      ],
+      "expectedBuildFields": {
+        "title": [
+          "Blog | Old Site"
+        ],
+        "og:title": [
+          "Blog | Old Site"
+        ],
+        "twitter:title": [
+          "Blog | Old Site"
+        ]
+      },
+      "head": "<title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Old Site</title><meta data-mgx-overview=\"og:title\" data-mgx-overview-prefix=\"Blog | \" property=\"og:title\" content=\"Blog | Old Site\"><meta data-mgx-overview=\"twitter:title\" data-mgx-overview-prefix=\"Blog | \" name=\"twitter:title\" content=\"Blog | Old Site\">"
+    },
+    {
+      "name": "description-python-strip-u0085",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "pythonStripBlank": true,
+      "whitespaceCodePoint": "U+0085",
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"\">"
+    },
+    {
+      "name": "title-python-strip-u0085",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedManagedFields": [
+        "title"
+      ],
+      "pythonStripBlank": true,
+      "whitespaceCodePoint": "U+0085",
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title></title>"
+    },
+    {
+      "name": "description-python-strip-u001c",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "pythonStripBlank": true,
+      "whitespaceCodePoint": "U+001C",
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"\u001c\">"
+    },
+    {
+      "name": "title-python-strip-u001c",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedManagedFields": [
+        "title"
+      ],
+      "pythonStripBlank": true,
+      "whitespaceCodePoint": "U+001C",
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>\u001c</title>"
+    },
+    {
+      "name": "description-python-strip-u001f",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedManagedFields": [
+        "description"
+      ],
+      "pythonStripBlank": true,
+      "whitespaceCodePoint": "U+001F",
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"\u001f\">"
+    },
+    {
+      "name": "title-python-strip-u001f",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedManagedFields": [
+        "title"
+      ],
+      "pythonStripBlank": true,
+      "whitespaceCodePoint": "U+001F",
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>\u001f</title>"
+    },
+    {
+      "name": "description-python-strip-feff",
+      "expectedFields": {
+        "description": [
+          "﻿"
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "﻿"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "description"
+      ],
+      "pythonStripBlank": false,
+      "whitespaceCodePoint": "U+FEFF",
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"﻿\">"
+    },
+    {
+      "name": "title-python-strip-feff",
+      "expectedFields": {
+        "title": [
+          "﻿"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "﻿"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "title"
+      ],
+      "pythonStripBlank": false,
+      "whitespaceCodePoint": "U+FEFF",
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>﻿</title>"
+    },
+    {
+      "name": "description-python-strip-u200b",
+      "expectedFields": {
+        "description": [
+          "​"
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "​"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "description"
+      ],
+      "pythonStripBlank": false,
+      "whitespaceCodePoint": "U+200B",
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"BUILD OLD\"><meta name=\"description\" content=\"​\">"
+    },
+    {
+      "name": "title-python-strip-u200b",
+      "expectedFields": {
+        "title": [
+          "​"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "​"
+        ]
+      },
+      "expectedUnmanagedFields": [
+        "title"
+      ],
+      "pythonStripBlank": false,
+      "whitespaceCodePoint": "U+200B",
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><title>​</title>"
+    },
+    {
+      "name": "duplicate-name-attributes",
+      "expectedFields": {},
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<meta name=\"description\" name=\"keywords\" content=\"DUP NAME\" data-extra=\"keep\">"
+      ],
+      "conservativeIdentity": true,
+      "head": "<meta name=\"description\" name=\"keywords\" content=\"DUP NAME\" data-extra=\"keep\">"
+    },
+    {
+      "name": "duplicate-property-attributes",
+      "expectedFields": {},
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<meta property=\"og:image\" property=\"custom:image\" content=\"/shared.png\" data-extra=\"keep\">"
+      ],
+      "conservativeIdentity": true,
+      "head": "<meta property=\"og:image\" property=\"custom:image\" content=\"/shared.png\" data-extra=\"keep\">"
+    },
+    {
+      "name": "duplicate-name-case-insensitive",
+      "expectedFields": {},
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<meta name=\"description\" NAME=\"description\" content=\"DUP SAME\" data-extra=\"keep\">"
+      ],
+      "conservativeIdentity": true,
+      "head": "<meta name=\"description\" NAME=\"description\" content=\"DUP SAME\" data-extra=\"keep\">"
+    },
+    {
+      "name": "shared-name-property-identity",
+      "expectedFields": {},
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<meta name=\"description\" property=\"custom:summary\" content=\"SHARED\" data-extra=\"keep\">"
+      ],
+      "conservativeIdentity": true,
+      "head": "<meta name=\"description\" property=\"custom:summary\" content=\"SHARED\" data-extra=\"keep\">"
+    },
+    {
+      "name": "shared-managed-name-property-identity",
+      "expectedFields": {},
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<meta data-mgx-overview=\"description\" name=\"description\" property=\"custom:summary\" content=\"SHARED\" data-extra=\"keep\">"
+      ],
+      "conservativeIdentity": true,
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" property=\"custom:summary\" content=\"SHARED\" data-extra=\"keep\">"
+    },
+    {
+      "name": "shared-duplicate-property-identity",
+      "expectedFields": {},
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<meta data-mgx-overview=\"description\" name=\"description\" property=\"og:description\" property=\"og:title\" content=\"SHARED\" data-extra=\"keep\">"
+      ],
+      "conservativeIdentity": true,
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" property=\"og:description\" property=\"og:title\" content=\"SHARED\" data-extra=\"keep\">"
+    },
+    {
+      "name": "meta-title-before-document-title",
+      "head": "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\"><title>PAGE TITLE</title>",
+      "expectedFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">",
+        "<title>PAGE TITLE</title>"
+      ]
+    },
+    {
+      "name": "meta-title-after-document-title",
+      "head": "<title>PAGE TITLE</title><meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">",
+      "expectedFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">",
+        "<title>PAGE TITLE</title>"
+      ]
+    },
+    {
+      "name": "meta-title-without-document-title",
+      "head": "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": []
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">"
+      ]
+    },
+    {
+      "name": "meta-title-before-managed-document-title",
+      "head": "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\"><title data-mgx-overview=\"title\">BUILD OLD</title>",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">"
+      ],
+      "expectedManagedFields": [
+        "title"
+      ]
+    },
+    {
+      "name": "meta-title-after-managed-document-title",
+      "head": "<title data-mgx-overview=\"title\">BUILD OLD</title><meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "BUILD OLD"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"title\" content=\"SEO TITLE\" data-extra=\"keep\">"
+      ],
+      "expectedManagedFields": [
+        "title"
+      ]
+    },
+    {
+      "name": "meta-property-title-independent",
+      "head": "<meta property=\"title\" content=\"PROPERTY TITLE\" data-extra=\"keep\"><title>PAGE TITLE</title>",
+      "expectedFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta property=\"title\" content=\"PROPERTY TITLE\" data-extra=\"keep\">",
+        "<title>PAGE TITLE</title>"
+      ]
+    },
+    {
+      "name": "meta-title-marker-is-not-document-title",
+      "head": "<meta data-mgx-overview=\"title\" name=\"title\" content=\"META TITLE\" data-extra=\"keep\"><title>PAGE TITLE</title>",
+      "expectedFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "PAGE TITLE"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta data-mgx-overview=\"title\" name=\"title\" content=\"META TITLE\" data-extra=\"keep\">",
+        "<title>PAGE TITLE</title>"
+      ]
+    },
+    {
+      "name": "empty-managed-source-title",
+      "head": "<title data-mgx-overview=\"title\"></title>",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          ""
+        ]
+      },
+      "expectedBuildKeepHtml": [
+        "<title data-mgx-overview=\"title\"></title>"
+      ],
+      "expectedManagedFields": [
+        "title"
+      ]
+    },
+    {
+      "name": "empty-managed-source-description",
+      "head": "<meta data-mgx-overview=\"description\" name=\"description\" content=\"\">",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          ""
+        ]
+      },
+      "expectedBuildKeepHtml": [
+        "<meta data-mgx-overview=\"description\" name=\"description\" content=\"\">"
+      ],
+      "expectedManagedFields": [
+        "description"
+      ]
+    },
+    {
+      "name": "empty-managed-source-og-image",
+      "head": "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"\">",
+      "expectedFields": {
+        "og:image": [
+          "/current.png?a=1&b=2"
+        ]
+      },
+      "expectedBuildFields": {
+        "og:image": [
+          ""
+        ]
+      },
+      "expectedBuildKeepHtml": [
+        "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"\">"
+      ],
+      "expectedManagedFields": [
+        "og:image"
+      ]
+    },
+    {
+      "name": "empty-managed-source-twitter-image",
+      "head": "<meta data-mgx-overview=\"twitter:image\" name=\"twitter:image\" content=\"\">",
+      "expectedFields": {
+        "twitter:image": [
+          "/current.png?a=1&b=2"
+        ]
+      },
+      "expectedBuildFields": {
+        "twitter:image": [
+          ""
+        ]
+      },
+      "expectedBuildKeepHtml": [
+        "<meta data-mgx-overview=\"twitter:image\" name=\"twitter:image\" content=\"\">"
+      ],
+      "expectedManagedFields": [
+        "twitter:image"
+      ]
+    },
+    {
+      "name": "empty-managed-image-with-empty-author",
+      "head": "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"\"><meta property=\"og:image\" content=\"\">",
+      "expectedFields": {
+        "og:image": [
+          "/current.png?a=1&b=2"
+        ]
+      },
+      "expectedBuildFields": {
+        "og:image": [
+          ""
+        ]
+      },
+      "expectedBuildKeepHtml": [
+        "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"\">"
+      ]
+    },
+    {
+      "name": "blank-overview-keeps-empty-managed-image",
+      "head": "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"\">",
+      "overview": {
+        "TITLE": "",
+        "DESCRIPTION": "",
+        "LOGO_URL": "",
+        "DARK_LOGO_URL": ""
+      },
+      "expectedFields": {
+        "og:image": [
+          ""
+        ]
+      },
+      "expectedBuildFields": {
+        "og:image": [
+          ""
+        ]
+      },
+      "expectedBuildKeepHtml": [
+        "<meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"\">"
+      ],
+      "expectedManagedFields": [
+        "og:image"
+      ]
+    },
+    {
+      "name": "empty-math-compact-managed-fallback",
+      "head": "<math/><title data-mgx-overview=\"title\">BUILD OLD</title>",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<math/>"
+      ],
+      "buildUnchanged": true
+    },
+    {
+      "name": "empty-math-spaced-managed-fallback",
+      "head": "<math /><title data-mgx-overview=\"title\">BUILD OLD</title>",
+      "expectedFields": {
+        "title": [
+          "Current & <Title>"
+        ]
+      },
+      "expectedBuildFields": {},
+      "expectedKeepHtml": [
+        "<math />"
+      ],
+      "buildUnchanged": true
+    },
+    {
+      "name": "ambiguous-head-multiple-managed-defaults",
+      "head": "<meta name=\"custom:summary\" property=\"custom:other\" content=\"SHARED\" data-extra=\"keep\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"FIRST\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"SECOND\">",
+      "expectedFields": {
+        "description": [
+          "Current \"Description\""
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "FIRST",
+          "SECOND"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"custom:summary\" property=\"custom:other\" content=\"SHARED\" data-extra=\"keep\">"
+      ],
+      "buildUnchanged": true
+    },
+    {
+      "name": "ambiguous-head-multiple-authored-values",
+      "head": "<meta name=\"custom:summary\" property=\"custom:other\" content=\"SHARED\" data-extra=\"keep\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"FIRST\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"SECOND\"><meta name=\"description\" content=\"ONE\"><meta name=\"description\" content=\"TWO\">",
+      "expectedFields": {
+        "description": [
+          "ONE",
+          "TWO"
+        ]
+      },
+      "expectedBuildFields": {
+        "description": [
+          "ONE",
+          "TWO"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"custom:summary\" property=\"custom:other\" content=\"SHARED\" data-extra=\"keep\">"
+      ]
+    },
+    {
+      "name": "empty-overview-safe-keeps-build-defaults",
+      "head": "<title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">",
+      "overview": {
+        "TITLE": "",
+        "DESCRIPTION": "",
+        "LOGO_URL": "",
+        "DARK_LOGO_URL": ""
+      },
+      "expectedFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">"
+      ]
+    },
+    {
+      "name": "empty-overview-ambiguous-keeps-build-defaults",
+      "head": "<meta name=\"x\" property=\"y\" content=\"SHARED\" data-extra=\"keep\"><title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">",
+      "overview": {
+        "TITLE": "",
+        "DESCRIPTION": "",
+        "LOGO_URL": "",
+        "DARK_LOGO_URL": ""
+      },
+      "expectedFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"x\" property=\"y\" content=\"SHARED\" data-extra=\"keep\"><title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">"
+      ],
+      "buildUnchanged": true
+    },
+    {
+      "name": "whitespace-overview-safe-keeps-build-defaults",
+      "head": "<title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">",
+      "overview": {
+        "TITLE": " \t\n ",
+        "DESCRIPTION": " \t\n ",
+        "LOGO_URL": " \t\n ",
+        "DARK_LOGO_URL": ""
+      },
+      "expectedFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">"
+      ]
+    },
+    {
+      "name": "whitespace-overview-ambiguous-keeps-build-defaults",
+      "head": "<meta name=\"x\" property=\"y\" content=\"SHARED\" data-extra=\"keep\"><title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">",
+      "overview": {
+        "TITLE": " \t\n ",
+        "DESCRIPTION": " \t\n ",
+        "LOGO_URL": " \t\n ",
+        "DARK_LOGO_URL": ""
+      },
+      "expectedFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedBuildFields": {
+        "title": [
+          "Blog | Build"
+        ],
+        "og:title": [
+          "Build"
+        ],
+        "og:site_name": [
+          "Build"
+        ],
+        "og:image:alt": [
+          "Build"
+        ],
+        "twitter:title": [
+          "Build"
+        ],
+        "description": [
+          "Build Desc"
+        ],
+        "og:image": [
+          "/build.png"
+        ]
+      },
+      "expectedKeepHtml": [
+        "<meta name=\"x\" property=\"y\" content=\"SHARED\" data-extra=\"keep\"><title data-mgx-overview=\"title\" data-mgx-overview-prefix=\"Blog | \">Blog | Build</title><meta data-mgx-overview=\"og:title\" property=\"og:title\" content=\"Build\"><meta data-mgx-overview=\"og:site_name\" property=\"og:site_name\" content=\"Build\"><meta data-mgx-overview=\"og:image:alt\" property=\"og:image:alt\" content=\"Build\"><meta data-mgx-overview=\"twitter:title\" name=\"twitter:title\" content=\"Build\"><meta data-mgx-overview=\"description\" name=\"description\" content=\"Build Desc\"><meta data-mgx-overview=\"og:image\" property=\"og:image\" content=\"/build.png\">"
+      ],
+      "buildUnchanged": true
+    }
+  ]
+}
