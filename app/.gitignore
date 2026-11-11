@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+frontend/dist/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+.git-credentials
+
+# Logs and caches
+logs/
+*.log
+.cache/
+.eslintcache
+coverage/
+playwright-report/
+test-results/
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
