@@ -1,0 +1,32 @@
+{
+  "title": "memory_settings",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "System-managed owner user ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    }
+  },
+  "required": [
+    "id",
+    "mode",
+    "user_id"
+  ],
+  "create_only": true
+}

@@ -5,28 +5,33 @@ last_updated: 2026-11-10T00:00:00Z
 # Architecture Design
 
 ## System Overview
-单页 React 应用，路由 `/` 渲染控制台页面；状态（项目列表、积分、标签页、导航）集中保存在 Index 页面中。
+React 前端 + FuncSea FastAPI 后端。每轮对话流程：
+1. 前端调用 POST /api/v1/memchat/prepare：保存用户消息，组装 system prompt（规则 + 召回的记忆），并带上当前会话最近 12 条消息。
+2. 前端用 client.ai.gentxt 流式调用 deepseek-v4-pro 生成回复。
+3. 前端调用 POST /finalize：保存助手消息；若为 learn 模式，用 deepseek-v4-flash 输出 create/update/delete 操作，经 JSON 校验和修复后应用到记忆库，并返回透明事件。
 
 ## Tech Stack
-Vite + React + TypeScript + Tailwind CSS + shadcn/ui + lucide-react + sonner。
+Vite + React + TS + Tailwind + shadcn/ui + @metagptx/web-sdk；FastAPI + SQLAlchemy Async + AIHubService；PostgreSQL（FuncSea）。
 
 ## Module Design
 | Module | Responsibility | Key Files |
 |--------|---------------|-----------|
-| 页面外壳 | 布局、顶栏、移动端抽屉、⌘K 快捷键、创建项目 | src/pages/Index.tsx |
-| 侧边栏 | Logo、工作区切换、新建、搜索、导航、积分、用户菜单 | src/components/dashboard/Sidebar.tsx |
-| 提示词输入框 | Agent 头像、标题、输入框、附件、模式/模型选择、推荐标签 | src/components/dashboard/PromptBox.tsx |
-| 项目区 | 标签页、搜索、排序、网格/列表视图、收藏、重命名、复制、删除、模板 | src/components/dashboard/ProjectsSection.tsx |
-| 数据 | Agent、项目、模板、模式、模型及时间格式化 | src/components/dashboard/data.ts |
+| 记忆引擎 | 模式/规则读取、检索打分、prompt 组装、提取、去重与冲突处理、敏感信息过滤 | app/backend/services/memory_engine.py |
+| 对话接口 | prepare/finalize、会话与消息、设置、记忆 CRUD、规则 CRUD | app/backend/routers/memchat.py |
+| 前端接口层 | 类型定义、apiCall 封装、流式回复 | app/frontend/src/lib/memchat.ts |
+| 对话页 | 登录门禁、落地页、消息流、发送流程 | app/frontend/src/pages/Index.tsx |
+| 组件 | 侧边栏（会话列表、记忆模式）、输入框、记忆事件条、记忆管理面板 | app/frontend/src/components/chat/* |
 
 ## Tech Decisions
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| 状态管理 | 使用 React useState，状态提升到页面 | 范围较小，不需要额外依赖 |
-| 公共样式 | 在 index.css 中定义 nav-item/icon-btn/chip-btn/card 类 | 复用控件样式 |
+| 数据表 | conversations, chat_messages(memory_events JSON), memories, memory_rules, memory_settings（均为 create_only） | 按用户隔离 |
+| 记忆字段 | memory_id(id), title, scene, content, category, confidence, source, source_session_id, status, hit_count, create_time, update_time | 与需求一致，并增加来源和命中次数 |
+| 检索 | 常驻画像（偏好/背景/约定类，置信度 ≥0.8，最多 4 条）+ 相关度 Top4（阈值 0.12） | 结构化为主、语义为辅 |
+| 冲突 | 将最多 12 条候选旧记忆交给 flash 模型判断 update/delete/skip | 去重和覆盖旧事实 |
 
 ## File Tree Plan
-app/frontend/src/pages/Index.tsx；app/frontend/src/components/dashboard/{Sidebar,PromptBox,ProjectsSection,data}.tsx|ts
+app/backend/{services/memory_engine.py, routers/memchat.py}；app/frontend/src/{lib/memchat.ts, pages/Index.tsx, components/chat/{ChatSidebar,Composer,MemoryEvents,MemoryPanel}.tsx}
 
 ## Implementation Guide
-新增区块时放在 components/dashboard 下，模拟数据集中写在 data.ts 中，颜色等视觉规范遵循 DESIGN.md。
+新增记忆分类时，需同时修改 memory_engine.CATEGORIES 和前端 CATEGORIES；更换模型时修改 CHAT_MODEL/MEMORY_MODEL；不要修改 FuncSea 生成的 models 和 migrations。

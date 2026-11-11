@@ -1,0 +1,68 @@
+{
+  "title": "memories",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "title": {
+      "type": "string"
+    },
+    "scene": {
+      "type": "string",
+      "format": "text"
+    },
+    "content": {
+      "type": "string",
+      "format": "text"
+    },
+    "category": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": "number"
+    },
+    "source": {
+      "type": "string"
+    },
+    "source_session_id": {
+      "type": "integer"
+    },
+    "status": {
+      "type": "string"
+    },
+    "hit_count": {
+      "type": "integer"
+    },
+    "create_time": {
+      "type": "string"
+    },
+    "update_time": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "System-managed owner user ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "content",
+    "category",
+    "confidence",
+    "status",
+    "user_id"
+  ],
+  "create_only": true
+}

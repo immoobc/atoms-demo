@@ -1,0 +1,40 @@
+{
+  "title": "memory_rules",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "content": {
+      "type": "string",
+      "format": "text"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "create_time": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "System-managed owner user ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    }
+  },
+  "required": [
+    "id",
+    "content",
+    "enabled",
+    "user_id"
+  ],
+  "create_only": true
+}

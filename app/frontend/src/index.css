@@ -120,3 +120,20 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.md-body p { margin: 0 0 0.75em; }
+.md-body p:last-child { margin-bottom: 0; }
+.md-body ul, .md-body ol { margin: 0.25em 0 0.75em; padding-left: 1.4em; }
+.md-body ul { list-style: disc; }
+.md-body ol { list-style: decimal; }
+.md-body li { margin: 0.2em 0; }
+.md-body h1, .md-body h2, .md-body h3 { font-weight: 600; margin: 0.9em 0 0.4em; line-height: 1.4; }
+.md-body h1 { font-size: 1.2em; } .md-body h2 { font-size: 1.1em; } .md-body h3 { font-size: 1em; }
+.md-body strong { font-weight: 600; }
+.md-body code { background: #F2F2F4; border-radius: 6px; padding: 0.1em 0.35em; font-size: 0.9em; }
+.md-body pre { background: #0B0B0F; color: #F7F7F8; border-radius: 12px; padding: 12px 14px; overflow-x: auto; margin: 0.5em 0 0.9em; }
+.md-body pre code { background: transparent; padding: 0; color: inherit; }
+.md-body a { color: #5B3FD9; text-decoration: underline; }
+.md-body blockquote { border-left: 3px solid #E7E7EA; padding-left: 12px; color: #5B5B66; }
+.md-body table { border-collapse: collapse; margin: 0.5em 0; font-size: 0.92em; }
+.md-body th, .md-body td { border: 1px solid #E7E7EA; padding: 4px 8px; }
