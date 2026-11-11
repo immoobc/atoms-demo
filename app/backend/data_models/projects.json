@@ -1,0 +1,50 @@
+{
+  "title": "projects",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "name": {
+      "type": "string"
+    },
+    "goal": {
+      "type": "string",
+      "format": "text"
+    },
+    "background": {
+      "type": "string",
+      "format": "text"
+    },
+    "acceptance": {
+      "type": "string",
+      "format": "text"
+    },
+    "create_time": {
+      "type": "string"
+    },
+    "update_time": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "System-managed owner user ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "user_id"
+  ],
+  "create_only": true
+}

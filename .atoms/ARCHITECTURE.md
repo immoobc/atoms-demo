@@ -1,14 +1,13 @@
 ---
-last_updated: 2026-11-10T00:00:00Z
+last_updated: 2026-11-11T00:00:00Z
 ---
 
 # Architecture Design
 
 ## System Overview
-React 前端 + FuncSea FastAPI 后端。每轮对话流程：
-1. 前端调用 POST /api/v1/memchat/prepare：保存用户消息，组装 system prompt（规则 + 召回的记忆），并带上当前会话最近 12 条消息。
-2. 前端用 client.ai.gentxt 流式调用 deepseek-v4-pro 生成回复。
-3. 前端调用 POST /finalize：保存助手消息；若为 learn 模式，用 deepseek-v4-flash 输出 create/update/delete 操作，经 JSON 校验和修复后应用到记忆库，并返回透明事件。
+React 前端 + FuncSea FastAPI 后端，包含两个子系统：
+1. 记忆对话：prepare → 前端流式调用 gentxt（deepseek-v4-pro）→ finalize（deepseek-v4-flash 提取记忆，并处理去重和冲突）。
+2. 项目工作区：POST /api/v1/projects/{id}/runs 创建版本并启动后台任务。任务依次执行：主管（deepseek-v4-pro，JSON schema 校验 + 一次修复）→ 开发（claude-opus-4.6，输出 `<file>` 块 + `<meta>`，再做验收要点与静态检查，未通过时修复一轮）→ 记忆沉淀（flash 提取，结果写入 memories，并以 relation=derived 绑定到项目）。每个阶段结束都会写回 project_runs.stage；前端每 2.5s 轮询运行详情，实时渲染阶段。
 
 ## Tech Stack
 Vite + React + TS + Tailwind + shadcn/ui + @metagptx/web-sdk；FastAPI + SQLAlchemy Async + AIHubService；PostgreSQL（FuncSea）。
@@ -16,22 +15,26 @@ Vite + React + TS + Tailwind + shadcn/ui + @metagptx/web-sdk；FastAPI + SQLAlch
 ## Module Design
 | Module | Responsibility | Key Files |
 |--------|---------------|-----------|
-| 记忆引擎 | 模式/规则读取、检索打分、prompt 组装、提取、去重与冲突处理、敏感信息过滤 | app/backend/services/memory_engine.py |
-| 对话接口 | prepare/finalize、会话与消息、设置、记忆 CRUD、规则 CRUD | app/backend/routers/memchat.py |
-| 前端接口层 | 类型定义、apiCall 封装、流式回复 | app/frontend/src/lib/memchat.ts |
-| 对话页 | 登录门禁、落地页、消息流、发送流程 | app/frontend/src/pages/Index.tsx |
-| 组件 | 侧边栏（会话列表、记忆模式）、输入框、记忆事件条、记忆管理面板 | app/frontend/src/components/chat/* |
+| 记忆引擎 | 模式、规则、检索、prompt 组装、提取、冲突处理 | app/backend/services/memory_engine.py |
+| 对话接口 | 对话轮次、会话、设置、记忆和规则的增删改查 | app/backend/routers/memchat.py |
+| 流水线 | 角色规范 PROJECT_ROLE_SPECS、run_lead、run_developer、static_checks、bundle_html | app/backend/services/project_pipeline.py |
+| 项目接口 | 项目增删改查、记忆绑定、版本运行（后台任务）、运行详情和 HTML | app/backend/routers/project_workspace.py |
+| 前端接口层 | memchat / projects 的类型、接口调用、bundleHtml、阶段映射 | app/frontend/src/lib/{memchat,projects}.ts |
+| 页面 | 对话页、项目列表、项目工作区 | app/frontend/src/pages/{Index,Projects,ProjectWorkspace}.tsx |
+| 组件 | 对话组件；项目组件：PipelineRun、ArtifactPanel、RoleSpecDialog、ProjectMemorySheet、ProjectFormDialog | app/frontend/src/components/{chat,project}/* |
 
 ## Tech Decisions
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| 数据表 | conversations, chat_messages(memory_events JSON), memories, memory_rules, memory_settings（均为 create_only） | 按用户隔离 |
-| 记忆字段 | memory_id(id), title, scene, content, category, confidence, source, source_session_id, status, hit_count, create_time, update_time | 与需求一致，并增加来源和命中次数 |
-| 检索 | 常驻画像（偏好/背景/约定类，置信度 ≥0.8，最多 4 条）+ 相关度 Top4（阈值 0.12） | 结构化为主、语义为辅 |
-| 冲突 | 将最多 12 条候选旧记忆交给 flash 模型判断 update/delete/skip | 去重和覆盖旧事实 |
+| 数据表 | 原有 5 张表 + projects、project_memory_links(relation: bound/derived)、project_runs(stage/lead_output/dev_output/files/memory_events)、project_messages，均为 create_only | 按用户隔离 |
+| 路由文件名 | project_workspace.py，不使用 MCP 生成的 projects.py | 避免 MCP 重新生成时覆盖 |
+| 运行模式 | asyncio 后台任务，每个阶段使用独立的短会话；运行超过 15 分钟标记为失败 | 不在慢速 AI 调用期间持有事务 |
+| 自测 | AI 逐条核对验收要点；未覆盖的要点按未通过处理；另加 4 项确定性静态检查 | 自测结果可信 |
+| 预览 | 前端 bundleHtml 内联资源后放进 iframe srcdoc，sandbox=allow-scripts/forms/modals/popups | 隔离生成代码 |
 
 ## File Tree Plan
-app/backend/{services/memory_engine.py, routers/memchat.py}；app/frontend/src/{lib/memchat.ts, pages/Index.tsx, components/chat/{ChatSidebar,Composer,MemoryEvents,MemoryPanel}.tsx}
+backend: services/{memory_engine,project_pipeline}.py, routers/{memchat,project_workspace}.py
+frontend: src/lib/{memchat,projects}.ts, src/pages/{Index,Projects,ProjectWorkspace}.tsx, src/components/chat/*, src/components/project/*
 
 ## Implementation Guide
-新增记忆分类时，需同时修改 memory_engine.CATEGORIES 和前端 CATEGORIES；更换模型时修改 CHAT_MODEL/MEMORY_MODEL；不要修改 FuncSea 生成的 models 和 migrations。
+修改角色的输入输出时，需要同步更新 PROJECT_ROLE_SPECS、validate_lead、build_dev_result 和前端的 LeadOutput/DevOutput 类型。更换模型时修改 LEAD_MODEL/DEV_MODEL。不要修改 MCP 生成的 models 和 migrations。

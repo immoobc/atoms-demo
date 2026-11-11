@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Markdown from 'markdown-to-jsx';
 import { Loader2, Menu, PanelLeftOpen, Brain, Plus, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -67,6 +68,7 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
   const [memVersion, setMemVersion] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -206,6 +208,7 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
       setMobileOpen(false);
       setPanelOpen(true);
     },
+    onOpenProjects: () => navigate('/projects'),
     onLogout,
   };
 

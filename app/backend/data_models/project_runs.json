@@ -1,0 +1,85 @@
+{
+  "title": "project_runs",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "integer"
+    },
+    "project_id": {
+      "type": "integer"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "prompt": {
+      "type": "string",
+      "format": "text"
+    },
+    "status": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "lead_output": {
+      "type": "string",
+      "format": "text"
+    },
+    "dev_output": {
+      "type": "string",
+      "format": "text"
+    },
+    "qa_output": {
+      "type": "string",
+      "format": "text"
+    },
+    "qa_first_output": {
+      "type": "string",
+      "format": "text"
+    },
+    "files": {
+      "type": "string",
+      "format": "text"
+    },
+    "fix_rounds": {
+      "type": "integer"
+    },
+    "memory_events": {
+      "type": "string",
+      "format": "text"
+    },
+    "error": {
+      "type": "string",
+      "format": "text"
+    },
+    "create_time": {
+      "type": "string"
+    },
+    "update_time": {
+      "type": "string"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "System-managed owner user ID"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "read_only": true
+    }
+  },
+  "required": [
+    "id",
+    "project_id",
+    "version",
+    "prompt",
+    "status",
+    "user_id"
+  ],
+  "create_only": true
+}

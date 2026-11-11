@@ -1,4 +1,4 @@
-import { Brain, ChevronsUpDown, LogOut, MessageSquare, PanelLeftClose, Plus, Trash2 } from 'lucide-react';
+import { Brain, ChevronsUpDown, FolderKanban, LogOut, MessageSquare, PanelLeftClose, Plus, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,7 @@ interface Props {
   onDelete: (id: number) => void;
   onModeChange: (m: MemoryMode) => void;
   onOpenMemory: () => void;
+  onOpenProjects: () => void;
   onLogout: () => void;
   onCollapse?: () => void;
 }
@@ -56,7 +57,12 @@ export default function ChatSidebar(p: Props) {
         <Plus className="h-4 w-4" /> 新建对话
       </button>
 
-      <button onClick={p.onOpenMemory} className="nav-item mt-2">
+      <button onClick={p.onOpenProjects} className="nav-item mt-2">
+        <FolderKanban className="h-4 w-4" />
+        <span className="flex-1 text-left">项目工作区</span>
+      </button>
+
+      <button onClick={p.onOpenMemory} className="nav-item">
         <Brain className="h-4 w-4" />
         <span className="flex-1 text-left">记忆管理</span>
         <span className="rounded-md bg-white px-1.5 text-[11px] text-[#5B5B66]">{p.memoryCount}</span>
