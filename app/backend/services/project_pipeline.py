@@ -10,6 +10,7 @@ source code out of JSON string escaping, which is fragile for long outputs.
 import json
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
@@ -184,7 +185,7 @@ DEV_SYSTEM = """你是 Atoms 项目的开发工程师。你要严格按照项目
 
 硬性约束：
 1. 只使用 HTML + CSS + 原生 JavaScript（可以引用 CDN 上的字体或图标），不要使用构建步骤、React/Vue 等框架或后端接口。
-2. 最多 3 个文件：index.html（必须）、styles.css、app.js。index.html 用相对路径引用另外两个文件。
+2. 最多 3 个文件：index.html（必须）、styles.css、app.js。index.html 用相对路径引用另外两个文件；index.html 中引用的每一个本地文件都必须完整输出，不引用就不要输出。
 3. 数据用 localStorage 或内存保存，交互必须真实可用，不允许空按钮、假成功、TODO 占位。
 4. 视觉精致、响应式、中文界面、对比度充足；代码紧凑，总长度控制在 600 行以内。
 
@@ -203,24 +204,68 @@ DEV_SYSTEM = """你是 Atoms 项目的开发工程师。你要严格按照项目
 </meta>
 自测要求：self_check.items 必须逐条覆盖主管给出的每一条验收要点，如实判断，不确定就写 passed=false 并说明原因。"""
 
-FILE_RE = re.compile(r'<file\s+path\s*=\s*"([^"]+)"\s*>\s*\n?(.*?)\n?</file>', re.DOTALL)
-META_RE = re.compile(r"<meta>\s*(.*?)\s*</meta>", re.DOTALL)
-FENCE_RE = re.compile(r"^```[a-zA-Z]*\n(.*)\n```$", re.DOTALL)
+FILE_RE = re.compile(r"<file\s+(?:path|name)\s*=\s*[\"']([^\"']+)[\"']\s*/?>\s*\n?(.*?)\n?</file\s*>", re.DOTALL | re.IGNORECASE)
+OPEN_FILE_RE = re.compile(r"<file\s+(?:path|name)\s*=\s*[\"']([^\"']+)[\"']\s*>\s*\n?", re.IGNORECASE)
+META_RE = re.compile(r"<meta>\s*(.*?)\s*(?:</meta>|$)", re.DOTALL)
+FENCE_RE = re.compile(r"^```[a-zA-Z]*\n(.*?)\n?```$", re.DOTALL)
+NAMED_FENCE_RE = re.compile(
+    r"(?:^|\n)[#>*\s`/<!-]*([\w.\-/]+\.(?:html|css|js))[`*\s:>-]*\n```[a-zA-Z]*\n(.*?)\n```", re.DOTALL
+)
+LANG_FENCE_RE = re.compile(r"```(html|css|javascript|js)\s*\n(.*?)\n```", re.DOTALL | re.IGNORECASE)
+LANG_DEFAULT = {"html": "index.html", "css": "styles.css", "javascript": "app.js", "js": "app.js"}
+LOCAL_REF_RE = re.compile(r"(?:href|src)\s*=\s*[\"']([^\"']+\.(?:css|js))(?:\?[^\"']*)?[\"']", re.IGNORECASE)
+
+
+def _clean_path(path: str) -> str:
+    clean = path.strip().replace("\\", "/")
+    while clean.startswith("./"):
+        clean = clean[2:]
+    if not clean or ".." in clean or clean.startswith("/"):
+        raise ValueError(f"invalid file path: {path}")
+    return clean
+
+
+def _strip_fence(body: str) -> str:
+    body = body.strip("\n")
+    fenced = FENCE_RE.match(body.strip())
+    return fenced.group(1) if fenced else body
+
+
+def _collect_files(text: str) -> dict[str, str]:
+    """Tolerant extraction: <file> blocks, unterminated last block, named fences, then language fences."""
+    files: dict[str, str] = {}
+    for path, content in FILE_RE.findall(text):
+        files[_clean_path(path)] = _strip_fence(content)
+    opens = list(OPEN_FILE_RE.finditer(text))
+    if opens:
+        last = opens[-1]
+        path = _clean_path(last.group(1))
+        if path not in files:  # truncated or missing </file>
+            tail = text[last.end():]
+            tail = re.split(r"</file\s*>|<meta>|<file\s", tail, maxsplit=1)[0]
+            if tail.strip():
+                files[path] = _strip_fence(tail)
+    if files:
+        return files
+    for path, content in NAMED_FENCE_RE.findall(text):
+        files[_clean_path(path)] = content
+    if files:
+        return files
+    for lang, content in LANG_FENCE_RE.findall(text):
+        files.setdefault(LANG_DEFAULT[lang.lower()], content)
+    return files
 
 
 def parse_dev_output(text: str) -> tuple[dict[str, str], dict[str, Any]]:
-    files: dict[str, str] = {}
-    for path, content in FILE_RE.findall(text):
-        clean_path = path.strip().lstrip("./").replace("\\", "/")
-        if not clean_path or ".." in clean_path or clean_path.startswith("/"):
-            raise ValueError(f"invalid file path: {path}")
-        body = content.strip("\n")
-        fenced = FENCE_RE.match(body.strip())
-        files[clean_path] = fenced.group(1) if fenced else body
+    files = {p: c for p, c in _collect_files(text).items() if c.strip()}
     if not files:
         raise ValueError("no <file> blocks found")
     if "index.html" not in files:
-        raise ValueError("index.html is required")
+        htmls = [p for p in files if p.endswith(".html")]
+        if len(htmls) == 1:
+            files["index.html"] = files.pop(htmls[0])
+        else:
+            raise ValueError("index.html is required")
     meta: dict[str, Any] = {}
     match = META_RE.search(text)
     if match:
@@ -229,6 +274,40 @@ def parse_dev_output(text: str) -> tuple[dict[str, str], dict[str, Any]]:
         except (ValueError, json.JSONDecodeError) as exc:
             logger.warning("developer meta block invalid: %s", exc)
     return files, meta
+
+
+def local_refs(html: str) -> list[str]:
+    refs = [r for r in LOCAL_REF_RE.findall(html) if not re.match(r"^(https?:)?//", r) and not r.startswith("data:")]
+    return [_clean_path(r) for r in refs]
+
+
+def ensure_referenced_files(files: dict[str, str]) -> list[str]:
+    """Create placeholder-free stubs for referenced-but-missing stylesheets; report missing scripts."""
+    notes: list[str] = []
+    for ref in local_refs(files.get("index.html", "")):
+        if ref in files:
+            continue
+        if ref.endswith(".css"):
+            files[ref] = "/* 该样式文件被 index.html 引用但模型未生成，系统已自动补齐为空文件，页面样式以内联样式为准。 */\n"
+            notes.append(f"自动补齐了缺失的 {ref}")
+        else:
+            notes.append(f"index.html 引用的 {ref} 未生成")
+    return notes
+
+
+def friendly_error(exc: BaseException) -> str:
+    """Translate raw pipeline exceptions into actionable Chinese messages."""
+    raw = str(exc) or exc.__class__.__name__
+    low = raw.lower()
+    if "insufficient_ai_balance" in low or ("403" in low and "balance" in low):
+        return "AI 余额不足（insufficient_ai_balance）：请先在 Atoms 设置中充值 AI 余额，然后点击“重试”。"
+    if "timeout" in low or "timed out" in low:
+        return "AI 服务响应超时，请稍后点击“重试”。"
+    if "no <file> blocks" in low or "index.html is required" in low:
+        return "开发工程师的输出无法解析为代码文件（格式偏差或被截断），请点击“重试”或精简需求。"
+    if "429" in low or "rate limit" in low:
+        return "AI 服务请求过于频繁，请稍后点击“重试”。"
+    return f"执行出错：{raw[:300]}"
 
 
 def static_checks(files: dict[str, str]) -> list[dict[str, Any]]:
@@ -240,9 +319,8 @@ def static_checks(files: dict[str, str]) -> list[dict[str, Any]]:
     complete = all(tag in lower for tag in ("<html", "<body", "</html>"))
     items.append({"point": "index.html 结构完整（html/body 标签闭合）", "passed": complete, "evidence": "解析 index.html 标签", "kind": "static"})
 
-    refs = re.findall(r'(?:href|src)="([^"]+\.(?:css|js))"', html)
-    local = [r for r in refs if not re.match(r"^(https?:)?//", r)]
-    missing = [r for r in local if r.lstrip("./") not in files]
+    local = local_refs(html)
+    missing = [r for r in local if r not in files]
     items.append({
         "point": "本地引用的 CSS/JS 文件全部存在",
         "passed": not missing,
@@ -275,6 +353,9 @@ def static_checks(files: dict[str, str]) -> list[dict[str, Any]]:
 
 
 def build_dev_result(files: dict[str, str], meta: dict[str, Any], acceptance_points: list[str], fix_round: int) -> dict[str, Any]:
+    repair_notes = ensure_referenced_files(files)
+    if not meta:
+        repair_notes.append("开发工程师未输出 <meta> 自测信息，验收要点按未覆盖处理")
     check = meta.get("self_check") if isinstance(meta.get("self_check"), dict) else {}
     raw_items = check.get("items") if isinstance(check.get("items"), list) else []
     items: list[dict[str, Any]] = []
@@ -299,9 +380,10 @@ def build_dev_result(files: dict[str, str], meta: dict[str, Any], acceptance_poi
         "self_check": {
             "passed": all(i["passed"] for i in items),
             "items": items,
-            "notes": str(check.get("notes", ""))[:600],
+            "notes": "；".join(x for x in [str(check.get("notes", ""))[:600], *repair_notes] if x)[:900],
         },
         "fix_round": fix_round,
+        "kind": "pipeline",
     }
 
 
@@ -328,20 +410,37 @@ def bundle_html(result: dict[str, Any]) -> str:
     return html
 
 
-async def _generate(service: AIHubService, prompt: str) -> str:
-    response = await service.gentxt(
-        GenTxtRequest(
-            messages=[ChatMessage(role="system", content=DEV_SYSTEM), ChatMessage(role="user", content=prompt)],
-            model=DEV_MODEL,
-            temperature=0.2,
-            max_tokens=DEV_MAX_TOKENS,
-        )
+ChunkCallback = Optional[Callable[[str], Awaitable[None]]]
+STREAM_FLUSH_SECONDS = 1.2
+
+
+async def _generate(service: AIHubService, prompt: str, on_chunk: ChunkCallback = None) -> str:
+    """Stream the developer output; flush the accumulated text to on_chunk at a throttled rate."""
+    request = GenTxtRequest(
+        messages=[ChatMessage(role="system", content=DEV_SYSTEM), ChatMessage(role="user", content=prompt)],
+        model=DEV_MODEL,
+        temperature=0.2,
+        max_tokens=DEV_MAX_TOKENS,
     )
-    return response.content
+    parts: list[str] = []
+    last_flush = 0.0
+    async for chunk in service.gentxt_stream(request):
+        parts.append(chunk)
+        if on_chunk and time.monotonic() - last_flush >= STREAM_FLUSH_SECONDS:
+            last_flush = time.monotonic()
+            await on_chunk("".join(parts))
+    text = "".join(parts)
+    if on_chunk:
+        await on_chunk(text)
+    if not text.strip():
+        raise ValueError("no <file> blocks found (empty response)")
+    return text
 
 
 async def run_developer(
-    context: dict[str, Any], on_stage: Optional[Callable[[str], Awaitable[None]]] = None
+    context: dict[str, Any],
+    on_stage: Optional[Callable[[str], Awaitable[None]]] = None,
+    on_chunk: ChunkCallback = None,
 ) -> dict[str, Any]:
     plan = context["lead_output"]
     acceptance = plan["acceptance_points"]
@@ -358,7 +457,7 @@ async def run_developer(
         base_prompt += "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in context["previous_files"].items())
 
     service = AIHubService()
-    raw = await _generate(service, base_prompt)
+    raw = await _generate(service, base_prompt, on_chunk)
     try:
         files, meta = parse_dev_output(raw)
     except ValueError as first_error:
@@ -366,6 +465,7 @@ async def run_developer(
         raw = await _generate(
             service,
             base_prompt + f"\n\n注意：你上一次的输出无法解析（{first_error}）。请严格按 <file> 与 <meta> 格式输出，并精简代码，避免输出被截断。",
+            on_chunk,
         )
         files, meta = parse_dev_output(raw)
 
@@ -383,8 +483,11 @@ async def run_developer(
         "上一版文件：\n" + "\n".join(f'<file path="{p}">\n{c}\n</file>' for p, c in files.items())
     )
     try:
-        fixed_files, fixed_meta = parse_dev_output(await _generate(service, fix_prompt))
-        return build_dev_result(fixed_files, fixed_meta, acceptance, 1)
+        fixed_files, fixed_meta = parse_dev_output(await _generate(service, fix_prompt, on_chunk))
+        merged = {**result["files"], **fixed_files}  # tolerate repair rounds that only return changed files
+        if not fixed_meta:
+            fixed_meta = {"stack": meta.get("stack"), "delivery_log": meta.get("delivery_log")}
+        return build_dev_result(merged, fixed_meta, acceptance, 1)
     except ValueError as exc:
         logger.warning("developer repair round failed: %s", exc)
         result["self_check"]["notes"] = (result["self_check"]["notes"] + f"\n自动修复一轮失败：{exc}").strip()[:900]

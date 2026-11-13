@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { AlertCircle, Check, ChevronDown, Eye, FileCode2, Loader2, Wrench, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AlertCircle, Check, ChevronDown, ExternalLink, Eye, FileCode2, Loader2, Pencil, RotateCcw, RotateCw, Square, Wrench, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AGENT_AVATARS, formatTime } from '@/lib/memchat';
-import { STAGE_STEPS, activeStep, type Run } from '@/lib/projects';
+import { STAGE_STEPS, TOPUP_URL, activeStep, isBalanceError, runKind, streamingFile, type Run } from '@/lib/projects';
 import MemoryEvents from '@/components/chat/MemoryEvents';
 
 function Stepper({ run }: { run: Run }) {
@@ -39,12 +39,12 @@ function Stepper({ run }: { run: Run }) {
   );
 }
 
-function RoleHeader({ avatar, name, model, extra }: { avatar: string; name: string; model: string; extra?: React.ReactNode }) {
+function RoleHeader({ avatar, name, model, extra }: { avatar: string; name: string; model: string; extra?: ReactNode }) {
   return (
     <div className="flex items-center gap-2">
       <img src={avatar} alt="" className="h-6 w-6 rounded-full bg-[#F2F2F4] object-cover" />
       <span className="text-[13px] font-semibold">{name}</span>
-      <span className="font-mono text-[10px] text-[#9A9AA5]">{model}</span>
+      <span className="hidden font-mono text-[10px] text-[#9A9AA5] sm:inline">{model}</span>
       <span className="flex-1" />
       {extra}
     </div>
@@ -59,18 +59,104 @@ function Waiting({ text }: { text: string }) {
   );
 }
 
+function LiveStream({ run }: { run: Run }) {
+  const ref = useRef<HTMLPreElement>(null);
+  const file = streamingFile(run.stream);
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+  }, [run.stream]);
+  if (!run.stream) return null;
+  const tail = run.stream.split('\n').slice(-80).join('\n');
+  return (
+    <div className="mt-2 overflow-hidden rounded-[10px] border border-[#1F1F27] bg-[#0B0B0F]">
+      <div className="flex items-center gap-2 border-b border-white/10 px-3 py-1.5 text-[11px] text-[#A1A1AA]">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#22C55E]" />
+        {file ? `正在写入 ${file}` : '正在生成'}
+        <span className="flex-1" />
+        {(run.stream_length / 1000).toFixed(1)}k 字符
+      </div>
+      <pre ref={ref} className="max-h-56 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11px] leading-[17px] text-[#D4D4D8]">
+        {tail}
+      </pre>
+    </div>
+  );
+}
+
 interface Props {
   run: Run;
   selected: boolean;
+  actionBusy: boolean;
+  canRetry: boolean;
   onPreview: () => void;
+  onCancel: () => void;
+  onRetry: () => void;
 }
 
-export default function PipelineRun({ run, selected, onPreview }: Props) {
+function FailureBox({ run, actionBusy, canRetry, onRetry }: Pick<Props, 'run' | 'actionBusy' | 'canRetry' | 'onRetry'>) {
+  const balance = isBalanceError(run.error);
+  return (
+    <div className="rounded-lg bg-[#FEF2F2] px-3 py-2.5 text-[13px] text-[#B91C1C]">
+      <div className="flex items-start gap-2">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span className="leading-5">{run.error || '流水线执行失败（未知错误）'}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2 pl-6">
+        <button
+          onClick={onRetry}
+          disabled={actionBusy || !canRetry}
+          title={canRetry ? '用同样的需求重新运行本版本' : '请先等待或停止正在运行的流水线'}
+          className="flex h-7 items-center gap-1 rounded-md bg-[#B91C1C] px-2.5 text-[12px] font-medium text-white hover:bg-[#991B1B] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {actionBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />} 重试
+        </button>
+        {balance && (
+          <a
+            href={TOPUP_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-7 items-center gap-1 rounded-md border border-[#FECACA] bg-white px-2.5 text-[12px] font-medium text-[#B91C1C] hover:bg-[#FFF5F5]"
+          >
+            去充值 AI 余额 <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StaticVersion({ run, selected, onPreview }: Pick<Props, 'run' | 'selected' | 'onPreview'>) {
+  const kind = runKind(run);
+  const passed = run.dev_output?.self_check.passed;
+  return (
+    <div className={cn('flex items-center gap-2.5 rounded-[14px] border bg-[#FAFAFB] px-3 py-2.5', selected ? 'border-[#CFC3FF]' : 'border-[#E7E7EA]')}>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white ring-1 ring-[#E7E7EA]">
+        {kind === 'rollback' ? <RotateCcw className="h-3.5 w-3.5 text-[#5B5B66]" /> : <Pencil className="h-3.5 w-3.5 text-[#5B5B66]" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 text-[12px]">
+          <span className="rounded bg-[#0B0B0F] px-1.5 font-mono text-[11px] font-semibold text-white">v{run.version}</span>
+          <span className="font-medium">{kind === 'rollback' ? '回滚版本' : '手动编辑'}</span>
+          <span className="text-[#9A9AA5]">{formatTime(run.create_time)}</span>
+          <span className={passed ? 'text-[#15803D]' : 'text-[#B45309]'}>{passed ? '静态检查通过' : '静态检查未通过'}</span>
+        </div>
+        <p className="truncate text-[12px] text-[#5B5B66]">{run.prompt}</p>
+      </div>
+      <button onClick={onPreview} className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-[#5B3FD9] hover:bg-[#F5F2FF]">
+        <Eye className="h-3.5 w-3.5" /> 预览
+      </button>
+    </div>
+  );
+}
+
+export default function PipelineRun({ run, selected, actionBusy, canRetry, onPreview, onCancel, onRetry }: Props) {
   const [showLead, setShowLead] = useState(true);
+  if (runKind(run) !== 'pipeline') return <StaticVersion run={run} selected={selected} onPreview={onPreview} />;
+
   const lead = run.lead_output;
   const dev = run.dev_output;
   const step = activeStep(run);
   const fileCount = Object.keys(run.files || {}).length;
+  const running = run.status === 'running';
 
   return (
     <div className="space-y-3">
@@ -83,6 +169,15 @@ export default function PipelineRun({ run, selected, onPreview }: Props) {
           <span className="rounded-md bg-[#0B0B0F] px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white">v{run.version}</span>
           <span className="text-[11px] text-[#9A9AA5]">{formatTime(run.create_time)}</span>
           <span className="flex-1" />
+          {running && (
+            <button
+              onClick={onCancel}
+              disabled={actionBusy}
+              className="flex items-center gap-1 rounded-md border border-[#E7E7EA] px-2 py-1 text-[12px] font-medium text-[#5B5B66] hover:border-[#FECACA] hover:text-[#B91C1C] disabled:opacity-50"
+            >
+              {actionBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Square className="h-3 w-3 fill-current" />} 停止
+            </button>
+          )}
           {run.status === 'done' && fileCount > 0 && (
             <button onClick={onPreview} className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] font-medium text-[#5B3FD9] hover:bg-[#F5F2FF]">
               <Eye className="h-3.5 w-3.5" /> 预览此版本
@@ -106,7 +201,7 @@ export default function PipelineRun({ run, selected, onPreview }: Props) {
               }
             />
             <div className="mt-1.5 pl-8">
-              {!lead && step === 0 && run.status === 'running' && <Waiting text="正在拆解目标、制定方案…" />}
+              {!lead && step === 0 && running && <Waiting text="正在拆解目标、制定方案…" />}
               {lead && (
                 <>
                   <p className="text-[13px] leading-5 text-[#2A2A33]">{lead.summary}</p>
@@ -166,8 +261,11 @@ export default function PipelineRun({ run, selected, onPreview }: Props) {
                 }
               />
               <div className="mt-1.5 pl-8">
-                {!dev && run.status === 'running' && (
-                  <Waiting text={run.stage === 'fix' ? '自测发现问题，正在自动修复一轮…' : '正在按方案编写代码并自测（约 1–3 分钟）…'} />
+                {!dev && running && (
+                  <>
+                    <Waiting text={run.stage === 'fix' ? '自测发现问题，正在自动修复一轮…' : run.stream ? '正在按方案编写代码（实时输出）…' : '正在按方案编写代码并自测（约 1–3 分钟）…'} />
+                    {(run.stage === 'dev' || run.stage === 'fix') && <LiveStream run={run} />}
+                  </>
                 )}
                 {dev && (
                   <div className="space-y-2.5 text-[12.5px] leading-5">
@@ -189,12 +287,13 @@ export default function PipelineRun({ run, selected, onPreview }: Props) {
                             {it.passed ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#16A34A]" /> : <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#DC2626]" />}
                             <span>
                               {it.point}
+                              {it.kind === 'static' && <span className="ml-1 rounded bg-[#F2F2F4] px-1 text-[10px] text-[#5B5B66]">静态</span>}
                               {it.evidence && <span className="block text-[11.5px] text-[#9A9AA5]">{it.evidence}</span>}
                             </span>
                           </li>
                         ))}
                       </ul>
-                      {dev.self_check.notes && <p className="mt-1 text-[11.5px] text-[#9A9AA5]">{dev.self_check.notes}</p>}
+                      {dev.self_check.notes && <p className="mt-1 whitespace-pre-wrap text-[11.5px] text-[#9A9AA5]">{dev.self_check.notes}</p>}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[#5B5B66]">
                       <FileCode2 className="h-3.5 w-3.5" />
@@ -213,16 +312,11 @@ export default function PipelineRun({ run, selected, onPreview }: Props) {
             </section>
           )}
 
-          {run.status === 'running' && run.stage === 'memory' && <Waiting text="正在把项目结论沉淀为长期记忆…" />}
+          {running && run.stage === 'memory' && <Waiting text="正在把项目结论沉淀为长期记忆…" />}
           {run.memory_events && (
             <MemoryEvents msg={{ id: `run-${run.id}`, role: 'assistant', content: '', events: run.memory_events, status: 'done' }} />
           )}
-          {run.status === 'failed' && (
-            <div className="flex items-start gap-2 rounded-lg bg-[#FEF2F2] px-3 py-2 text-[13px] text-[#B91C1C]">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>流水线执行失败：{run.error || '未知错误'}。可以修改需求后重新发起。</span>
-            </div>
-          )}
+          {run.status === 'failed' && <FailureBox run={run} actionBusy={actionBusy} canRetry={canRetry} onRetry={onRetry} />}
         </div>
       </article>
     </div>

@@ -1,4 +1,4 @@
-import { Brain, ChevronsUpDown, FolderKanban, LogOut, MessageSquare, PanelLeftClose, Plus, Trash2 } from 'lucide-react';
+import { Brain, ChevronsUpDown, FolderKanban, LogOut, MessageSquare, PanelLeftClose, Plus, Trash2, UserRound } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,9 @@ interface Props {
   onModeChange: (m: MemoryMode) => void;
   onOpenMemory: () => void;
   onOpenProjects: () => void;
+  onOpenAccount: () => void;
+  onRetryList: () => void;
+  listError: string;
   onLogout: () => void;
   onCollapse?: () => void;
 }
@@ -70,7 +73,14 @@ export default function ChatSidebar(p: Props) {
 
       <div className="mt-4 px-2.5 text-[11px] font-medium uppercase tracking-wider text-[#9A9AA5]">对话</div>
       <nav className="mt-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
-        {p.conversations.length === 0 && <p className="px-2.5 py-3 text-xs text-[#9A9AA5]">还没有对话，开始第一段吧</p>}
+        {p.listError ? (
+          <div className="px-2.5 py-3 text-xs text-[#B91C1C]">
+            对话列表加载失败
+            <button onClick={p.onRetryList} className="ml-1 font-medium underline">重试</button>
+          </div>
+        ) : (
+          p.conversations.length === 0 && <p className="px-2.5 py-3 text-xs text-[#9A9AA5]">还没有对话，开始第一段吧</p>
+        )}
         {p.conversations.map((c) => (
           <div
             key={c.id}
@@ -94,7 +104,7 @@ export default function ChatSidebar(p: Props) {
               aria-label={`删除对话 ${c.title}`}
               disabled={p.busy}
               onClick={() => p.onDelete(c.id)}
-              className="mr-1 hidden h-7 w-7 items-center justify-center rounded-md text-[#9A9AA5] hover:bg-[#F2F2F4] hover:text-[#DC2626] group-hover:flex"
+              className="mr-1 flex h-7 w-7 items-center justify-center rounded-md text-[#9A9AA5] hover:bg-[#F2F2F4] hover:text-[#DC2626] lg:hidden lg:group-hover:flex"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -141,6 +151,10 @@ export default function ChatSidebar(p: Props) {
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="start" className="w-56">
           <DropdownMenuLabel className="text-xs text-[#9A9AA5]">{p.userEmail}</DropdownMenuLabel>
+          <DropdownMenuItem onClick={p.onOpenAccount}>
+            <UserRound className="mr-2 h-4 w-4" />
+            个人中心
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={p.onOpenMemory}>
             <Brain className="mr-2 h-4 w-4" />
             记忆管理

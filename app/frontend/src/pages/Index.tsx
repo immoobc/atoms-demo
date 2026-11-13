@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Markdown from 'markdown-to-jsx';
-import { Loader2, Menu, PanelLeftOpen, Brain, Plus, AlertCircle } from 'lucide-react';
+import { Loader2, Menu, PanelLeftOpen, Brain, Plus, AlertCircle, RotateCw } from 'lucide-react';
+import { LAST_CONVERSATION_KEY } from '@/lib/authFlow';
 import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,14 +28,19 @@ const SUGGESTIONS = [
   '你记得关于我的哪些信息？',
 ];
 
-function Landing({ onLogin }: { onLogin: () => void }) {
+function Landing({ onLogin, onRegister }: { onLogin: () => void; onRegister: () => void }) {
   return (
-    <div className="flex min-h-screen flex-col bg-white text-[#0B0B0F]">
+    <div className="flex min-h-[100dvh] flex-col bg-white text-[#0B0B0F]">
       <header className="flex h-16 items-center justify-between px-6">
         <AtomsLogo />
-        <button onClick={onLogin} className="h-9 rounded-[10px] bg-[#0B0B0F] px-4 text-sm font-medium text-white hover:bg-[#2A2A33]">
-          登录
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onLogin} className="h-9 rounded-[10px] px-3 text-sm font-medium text-[#2A2A33] hover:bg-[#F2F2F4]">
+            登录
+          </button>
+          <button onClick={onRegister} className="h-9 rounded-[10px] bg-[#0B0B0F] px-4 text-sm font-medium text-white hover:bg-[#2A2A33]">
+            注册
+          </button>
+        </div>
       </header>
       <main className="mx-auto flex max-w-[760px] flex-1 flex-col items-center justify-center px-6 pb-24 text-center">
         <div className="flex -space-x-2">
@@ -48,9 +54,14 @@ function Landing({ onLogin }: { onLogin: () => void }) {
         <p className="mt-4 max-w-[560px] text-[15px] leading-6 text-[#5B5B66]">
           规则层、会话层、长期记忆三层协同。偏好和背景会被提炼成结构化记忆，新开对话也能召回。每一次读写都清楚可见、随时可改。
         </p>
-        <button onClick={onLogin} className="mt-8 h-11 rounded-[12px] bg-[#0B0B0F] px-6 text-[15px] font-medium text-white hover:bg-[#2A2A33]">
-          登录开始体验
-        </button>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <button onClick={onRegister} className="h-11 rounded-[12px] bg-[#0B0B0F] px-6 text-[15px] font-medium text-white hover:bg-[#2A2A33]">
+            免费注册
+          </button>
+          <button onClick={onLogin} className="h-11 rounded-[12px] border border-[#E7E7EA] px-6 text-[15px] font-medium text-[#0B0B0F] hover:bg-[#F7F7F8]">
+            登录开始体验
+          </button>
+        </div>
       </main>
     </div>
   );
@@ -68,6 +79,9 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
   const [memVersion, setMemVersion] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [listError, setListError] = useState('');
+  const [msgError, setMsgError] = useState('');
+  const selectConversationRef = useRef<(id: number) => void>(() => {});
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -76,8 +90,12 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
     try {
       const res = await memApi.conversations();
       setConversations(res.items);
+      setListError('');
+      return res.items;
     } catch (e) {
+      setListError(errMsg(e));
       toast.error('加载对话失败', { description: errMsg(e) });
+      return null;
     }
   }, []);
 
@@ -91,7 +109,14 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
   }, []);
 
   useEffect(() => {
-    refreshConversations();
+    if (activeId) localStorage.setItem(LAST_CONVERSATION_KEY, String(activeId));
+  }, [activeId]);
+
+  useEffect(() => {
+    refreshConversations().then((items) => {
+      const last = Number(localStorage.getItem(LAST_CONVERSATION_KEY));
+      if (last && items?.some((c) => c.id === last)) selectConversationRef.current(last);
+    });
     refreshMemoryCount();
     memApi
       .getMode()
@@ -121,15 +146,15 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
   const newChat = () => {
     setActiveId(null);
     setMessages([]);
+    setMsgError('');
+    localStorage.removeItem(LAST_CONVERSATION_KEY);
     setMobileOpen(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const selectConversation = async (id: number) => {
-    setMobileOpen(false);
-    if (id === activeId) return;
-    setActiveId(id);
+  const loadMessages = async (id: number) => {
     setMessages([]);
+    setMsgError('');
     setLoadingMsgs(true);
     try {
       const res = await memApi.messages(id);
@@ -137,11 +162,19 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
         res.items.map((m) => ({ id: m.id, role: m.role, content: m.content, events: m.events, status: 'done' as const })),
       );
     } catch (e) {
-      toast.error('加载消息失败', { description: errMsg(e) });
+      setMsgError(errMsg(e));
     } finally {
       setLoadingMsgs(false);
     }
   };
+
+  const selectConversation = async (id: number) => {
+    setMobileOpen(false);
+    if (id === activeId) return;
+    setActiveId(id);
+    await loadMessages(id);
+  };
+  selectConversationRef.current = selectConversation;
 
   const deleteConversation = async (id: number) => {
     try {
@@ -209,10 +242,13 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
       setPanelOpen(true);
     },
     onOpenProjects: () => navigate('/projects'),
+    onOpenAccount: () => navigate('/account'),
+    onRetryList: refreshConversations,
+    listError,
     onLogout,
   };
 
-  const empty = messages.length === 0 && !loadingMsgs;
+  const empty = messages.length === 0 && !loadingMsgs && !msgError;
   const title = conversations.find((c) => c.id === activeId)?.title ?? '新对话';
 
   return (
@@ -284,7 +320,15 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
             <div ref={scrollRef} className="flex-1 overflow-y-auto">
               <div className="mx-auto max-w-[760px] space-y-6 px-4 py-8">
                 {loadingMsgs && (
-                  <div className="flex justify-center py-10"><Loader2 className="h-5 w-5 animate-spin text-[#9A9AA5]" /></div>
+                  <div className="flex flex-col items-center gap-2 py-10 text-sm text-[#9A9AA5]"><Loader2 className="h-5 w-5 animate-spin" />正在加载对话记录…</div>
+                )}
+                {msgError && (
+                  <div className="flex flex-col items-center gap-3 rounded-[14px] border border-[#FECACA] bg-[#FEF2F2] px-4 py-6 text-center text-sm text-[#B91C1C]">
+                    <AlertCircle className="h-5 w-5" /> 加载消息失败：{msgError}
+                    <button onClick={() => activeId && loadMessages(activeId)} className="chip-btn h-8 bg-white">
+                      <RotateCw className="h-3.5 w-3.5" /> 重试
+                    </button>
+                  </div>
                 )}
                 {messages.map((m) =>
                   m.role === 'user' ? (
@@ -342,14 +386,20 @@ function ChatApp({ userName, userEmail, onLogout }: { userName: string; userEmai
 }
 
 export default function Index() {
-  const { user, loading, login, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
+  const navigate = useNavigate();
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <Loader2 className="h-6 w-6 animate-spin text-[#9A9AA5]" />
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-2 bg-white text-sm text-[#9A9AA5]">
+        <Loader2 className="h-6 w-6 animate-spin" /> 正在确认登录状态…
       </div>
     );
   }
-  if (!user) return <Landing onLogin={login} />;
-  return <ChatApp userName={user.name ?? ''} userEmail={user.email} onLogout={logout} />;
+  if (!user) return <Landing onLogin={() => navigate('/login')} onRegister={() => navigate('/register')} />;
+  const doLogout = async () => {
+    localStorage.removeItem(LAST_CONVERSATION_KEY);
+    localStorage.removeItem('atoms:lastProject');
+    await logout();
+  };
+  return <ChatApp userName={user.name ?? ''} userEmail={user.email} onLogout={doLogout} />;
 }

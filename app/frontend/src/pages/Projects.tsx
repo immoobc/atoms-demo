@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Brain, FolderKanban, Loader2, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Brain, FolderKanban, History, Loader2, MoreHorizontal, Plus, RotateCw, Trash2, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import { AtomsLogo } from '@/components/chat/ChatSidebar';
 import RequireAuth from '@/components/chat/RequireAuth';
 import ProjectFormDialog from '@/components/project/ProjectFormDialog';
 import { formatTime } from '@/lib/memchat';
-import { errMsg, projApi, type Project } from '@/lib/projects';
+import { LAST_PROJECT_KEY, errMsg, projApi, type Project } from '@/lib/projects';
 import { cn } from '@/lib/utils';
 
 const GRADIENTS = [
@@ -31,16 +31,28 @@ function ProjectsInner() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Project | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       setProjects((await projApi.list()).items);
+      setLoadError('');
     } catch (e) {
-      toast.error('加载项目失败', { description: errMsg(e) });
+      setLoadError(errMsg(e));
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const lastId = (() => {
+    try {
+      return (JSON.parse(localStorage.getItem(LAST_PROJECT_KEY) || 'null') as { id: number } | null)?.id ?? null;
+    } catch {
+      return null;
+    }
+  })();
+  const lastProject = projects.find((p) => p.id === lastId);
 
   useEffect(() => {
     load();
@@ -79,6 +91,8 @@ function ProjectsInner() {
           <Link to="/" className="rounded-lg px-3 py-1 text-[#5B5B66] hover:text-[#0B0B0F]">对话</Link>
           <span className="rounded-lg bg-white px-3 py-1 font-medium shadow-sm">项目</span>
         </nav>
+        <span className="flex-1" />
+        <Link to="/account" aria-label="个人中心" title="个人中心" className="icon-btn"><UserRound className="h-4 w-4" /></Link>
       </header>
 
       <main className="mx-auto max-w-[1120px] px-4 py-10 md:px-8">
@@ -92,8 +106,23 @@ function ProjectsInner() {
           </Button>
         </div>
 
+        {lastProject && !loading && (
+          <button
+            onClick={() => navigate(`/projects/${lastProject.id}`)}
+            className="mt-6 flex w-full items-center gap-3 rounded-[14px] border border-[#E7E7EA] bg-[#FAF8FF] px-4 py-3 text-left transition-colors hover:border-[#CFC3FF]"
+          >
+            <History className="h-4 w-4 shrink-0 text-[#7C5CFF]" />
+            <span className="min-w-0 flex-1 truncate text-[13px]">继续上次的项目：<span className="font-medium">{lastProject.name}</span></span>
+            <span className="text-[12px] font-medium text-[#5B3FD9]">继续 →</span>
+          </button>
+        )}
         {loading ? (
-          <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-[#9A9AA5]" /></div>
+          <div className="flex flex-col items-center gap-2 py-20 text-sm text-[#9A9AA5]"><Loader2 className="h-6 w-6 animate-spin" />正在加载项目…</div>
+        ) : loadError ? (
+          <div className="mt-8 flex flex-col items-center gap-3 rounded-[16px] border border-[#FECACA] bg-[#FEF2F2] py-14 text-center text-sm text-[#B91C1C]">
+            <AlertCircle className="h-6 w-6" /> 加载项目失败：{loadError}
+            <button onClick={load} className="chip-btn h-8 bg-white"><RotateCw className="h-3.5 w-3.5" /> 重试</button>
+          </div>
         ) : projects.length === 0 ? (
           <button
             onClick={() => setCreating(true)}

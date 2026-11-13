@@ -1,0 +1,34 @@
+.prism-code,
+.code-input {
+  tab-size: 2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 19px;
+}
+.prism-code { color: #e7e7ea; }
+.prism-code .token.comment,
+.prism-code .token.prolog,
+.prism-code .token.doctype,
+.prism-code .token.cdata { color: #71717a; font-style: italic; }
+.prism-code .token.punctuation { color: #a1a1aa; }
+.prism-code .token.tag,
+.prism-code .token.selector,
+.prism-code .token.deleted { color: #f472b6; }
+.prism-code .token.attr-name,
+.prism-code .token.property { color: #fbbf24; }
+.prism-code .token.string,
+.prism-code .token.attr-value,
+.prism-code .token.char,
+.prism-code .token.inserted { color: #86efac; }
+.prism-code .token.keyword,
+.prism-code .token.atrule,
+.prism-code .token.important { color: #c4b5fd; }
+.prism-code .token.function,
+.prism-code .token.class-name { color: #7dd3fc; }
+.prism-code .token.number,
+.prism-code .token.boolean,
+.prism-code .token.constant { color: #fdba74; }
+.prism-code .token.operator,
+.prism-code .token.entity,
+.prism-code .token.url { color: #e5e7eb; }
+.prism-code .token.regex { color: #f9a8d4; }

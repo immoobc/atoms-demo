@@ -1,27 +1,22 @@
 import type { ReactNode } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { AtomsLogo } from '@/components/chat/ChatSidebar';
 
+/** Gate for protected pages: waits for auth, then sends anonymous visitors to /login with a return path. */
 export default function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading, login } = useAuth();
+  const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <Loader2 className="h-6 w-6 animate-spin text-[#9A9AA5]" />
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-2 bg-white text-sm text-[#9A9AA5]">
+        <Loader2 className="h-6 w-6 animate-spin" /> 正在确认登录状态…
       </div>
     );
   }
   if (!user) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-white px-6 text-center">
-        <AtomsLogo />
-        <p className="text-sm text-[#5B5B66]">登录后即可使用项目工作区</p>
-        <button onClick={login} className="h-10 rounded-[10px] bg-[#0B0B0F] px-5 text-sm font-medium text-white hover:bg-[#2A2A33]">
-          登录
-        </button>
-      </div>
-    );
+    const redirect = `${location.pathname}${location.search}`;
+    return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />;
   }
   return <>{children}</>;
 }
